@@ -21,12 +21,11 @@ import (
 )
 
 var (
-	ErrWarningResourceSyncStateDiff              = errors.New("resource syncTarget state diff detected")
-	ErrResourceSyncDiffInSameOCILayer            = errors.New("resource syncTarget diff detected but in same oci layer, prevent sync resource to be deleted") //nolint:lll
-	ErrInstallationConditionRequiresUpdate       = errors.New("installation condition needs an update")
-	ErrDeletionTimestampSetButNotInDeletingState = errors.New("resource is not set to deleting yet")
-	ErrObjectHasEmptyState                       = errors.New("object has an empty state")
-	ErrKubeconfigFetchFailed                     = errors.New("could not fetch kubeconfig")
+	ErrWarningResourceSyncStateDiff        = errors.New("resource syncTarget state diff detected")
+	ErrResourceSyncDiffInSameOCILayer      = errors.New("resource syncTarget diff detected but in same oci layer, prevent sync resource to be deleted") //nolint:lll
+	ErrInstallationConditionRequiresUpdate = errors.New("installation condition needs an update")
+	ErrObjectHasEmptyState                 = errors.New("object has an empty state")
+	ErrKubeconfigFetchFailed               = errors.New("could not fetch kubeconfig")
 )
 
 const (
