@@ -225,6 +225,101 @@ var _ = Describe("Test Manifest Reconciliation for module deletion", Ordered, fu
 	})
 })
 
+var _ = FDescribe("Test Manifest Reconciliation with Skip Label", Ordered, func() {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	var reconciler *Reconciler
+	var env *envtest.Environment
+	var cfg *rest.Config
+	var testClient client.Client
+	const ocirefSynced = "sha256:synced"
+
+	runID := fmt.Sprintf("run-%s", rand.String(4))
+	obj := &testv1.TestAPI{Spec: testv1.TestAPISpec{ManifestName: "skipped-manifest"}}
+	obj.SetLabels(labels.Set{testRunLabel: runID})
+	obj.SetNamespace(customResourceNamespace.Name)
+	obj.SetName(runID)
+
+	key := client.ObjectKeyFromObject(obj)
+
+	opts := []Option{WithRemoteTargetCluster(
+		func(context.Context, Object) (*ClusterInfo, error) {
+			return &ClusterInfo{
+				Config: cfg,
+			}, nil
+		},
+	)}
+	source := WithSpecResolver(DefaultSpec(filepath.Join(testSamplesDir, "raw-manifest.yaml"), ocirefSynced,
+		RenderModeRaw))
+	oldDeployedResources, err := internal.ParseManifestToObjects(path.Join(testSamplesDir, "raw-manifest.yaml"))
+	Expect(err).NotTo(HaveOccurred())
+
+	BeforeAll(func() {
+		env, cfg = StartEnv()
+		testClient = GetTestClient(cfg)
+		ctx, cancel = context.WithCancel(context.TODO())
+		reconciler = StartDeclarativeReconcilerForRun(ctx, runID, cfg, append(opts, WithSpecResolver(source))...)
+	})
+
+	It("Should create manifest resources", func() {
+		Expect(testClient.Create(ctx, obj)).To(Succeed())
+
+		EventuallyDeclarativeStatusShould(
+			ctx, key, testClient,
+			BeInState(shared.StateReady),
+			HaveConditionWithStatus(ConditionTypeResources, metav1.ConditionTrue),
+			HaveConditionWithStatus(ConditionTypeInstallation, metav1.ConditionTrue),
+		)
+
+		Expect(testClient.Get(ctx, key, obj)).To(Succeed())
+		Expect(obj.GetStatus()).To(HaveAllSyncedResourcesExistingInCluster(ctx, testClient))
+	})
+
+	It("Should skip reconciliation of deployed module resources", func() {
+		labels := obj.GetLabels()
+		labels[SkipReconcileLabel] = "true"
+		obj.SetLabels(labels)
+		Expect(testClient.Update(ctx, obj)).To(Succeed())
+
+		source := WithSpecResolver(DefaultSpec(filepath.Join(testSamplesDir, "empty-file.yaml"),
+			"", RenderModeRaw))
+		reconciler.SpecResolver = source
+		Consistently(validateOldResourcesNotLongerDeployed, Timeout, Interval).
+			WithContext(ctx).
+			WithArguments(ctx, oldDeployedResources, testClient).
+			Should(Not(Succeed()))
+	})
+
+	It("Should reconcile after skip label removed", func() {
+		labels := obj.GetLabels()
+		delete(labels, SkipReconcileLabel)
+		obj.SetLabels(labels)
+		Expect(testClient.Update(ctx, obj)).To(Succeed())
+
+		Eventually(validateOldResourcesNotLongerDeployed, Timeout, Interval).
+			WithContext(ctx).
+			WithArguments(ctx, oldDeployedResources, testClient).
+			Should(Succeed())
+
+		EventuallyDeclarativeStatusShould(
+			ctx, key, testClient,
+			BeInState(shared.StateReady),
+			HaveConditionWithStatus(ConditionTypeResources, metav1.ConditionTrue),
+			HaveConditionWithStatus(ConditionTypeInstallation, metav1.ConditionTrue),
+		)
+
+		Eventually(validateOldResourcesAreRemovedFromStatusSynced, Timeout, Interval).
+			WithArguments(ctx, testClient, key, oldDeployedResources).
+			WithContext(ctx).
+			Should(Succeed())
+	})
+
+	AfterAll(func() {
+		cancel()
+		Expect(env.Stop()).To(Succeed())
+	})
+})
+
 func isResourceFoundInSynced(res *unstructured.Unstructured, resource shared.Resource) bool {
 	return resource == shared.Resource{
 		Name:      res.GetName(),
