@@ -187,10 +187,8 @@ func DefineFlagVar() *FlagVar {
 		"Indicates the cache sync timeout in seconds")
 	flag.BoolVar(&flagVar.EnableDomainNameVerification, "enable-domain-name-pinning", true,
 		"Enabling verification of incoming listener request by comparing SAN with KymaCR-SKR-domain")
-	flag.IntVar(
-		&flagVar.LogLevel, "log-level", DefaultLogLevel,
-		"indicates the current log-level, enter negative values to increase verbosity (e.g. 9)",
-	)
+	flag.IntVar(&flagVar.LogLevel, "log-level", DefaultLogLevel,
+		"indicates the current log-level, enter negative values to increase verbosity (e.g. 9)")
 	flag.BoolVar(&flagVar.InKCPMode, "in-kcp-mode", false,
 		"Indicates lifecycle manager is deployed in control-plane mode (multiple clusters mode)")
 	flag.BoolVar(&flagVar.EnablePurgeFinalizer, "enable-purge-finalizer", false,
@@ -235,6 +233,8 @@ func DefineFlagVar() *FlagVar {
 	flag.IntVar(&flagVar.MetricsCleanupIntervalInMinutes, "metrics-cleanup-interval",
 		DefaultMetricsCleanupIntervalInMinutes,
 		"The interval at which the cleanup of non-existing kyma CRs metrics runs.")
+	flag.BoolVar(&flagVar.UseLegacyIstioGateway, "use-legacy-istio-gateway", false,
+		"Use the legacy certificate management for the SKR Watcher certificates.")
 	return flagVar
 }
 
@@ -303,6 +303,7 @@ type FlagVar struct {
 	MetricsCleanupIntervalInMinutes        int
 	ManifestRequeueJitterProbability       float64
 	ManifestRequeueJitterPercentage        float64
+	UseLegacyIstioGateway                  bool
 }
 
 func (f FlagVar) Validate() error {
